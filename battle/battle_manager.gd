@@ -61,6 +61,7 @@ var _pending_skill := ""
 @onready var _target_menu: VBoxContainer = $TargetMenu
 @onready var _enemy_timer: Timer = $EnemyTimer
 @onready var _banner: Label = $Banner
+@onready var _loot: Label = $Loot
 @onready var _game_over: Control = $GameOver
 
 
@@ -309,14 +310,30 @@ func _end_battle() -> void:
 			_game_over.show()
 			return
 
+	# Fleeing is its own result: you didn't win, so the enemy is still out there.
+	# Settling it here (not on the way out) means the win's loot is already banked
+	# by the time we put the summary on screen.
+	Game.end_battle("fled" if _fled else winner())
+
 	if _fled:
 		_say("You fled the fight.")
 	elif winner() == "player":
 		_say("Victory! All enemies are down.")
 		_banner.show()
+		_loot.text = _loot_summary(Game.last_loot)
+		_loot.show()
 	else:
 		_say("You are down. Defeat...")
 	_return_to_overworld()
+
+
+# "+8 scrap, found bandage" — the item half only when something dropped.
+func _loot_summary(loot: Dictionary) -> String:
+	var text: String = "+%d scrap" % int(loot.get("scrap", 0))
+	var item: String = loot.get("item", "")
+	if item != "":
+		text += ", found %s" % item.replace("_", " ")
+	return text
 
 
 func _on_restart_pressed() -> void:
@@ -325,8 +342,6 @@ func _on_restart_pressed() -> void:
 
 
 func _return_to_overworld() -> void:
-	# Fleeing is its own result: you didn't win, so the enemy is still out there.
-	Game.end_battle("fled" if _fled else winner())
 	await get_tree().create_timer(EXIT_DELAY).timeout
 	get_tree().change_scene_to_file(OVERWORLD_SCENE)
 
