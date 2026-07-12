@@ -75,6 +75,11 @@ layout_mode = 2
 text = "You"
 horizontal_alignment = 1
 
+[node name="Energy" type="Label" parent="PlayerBox"]
+layout_mode = 2
+text = "Energy"
+horizontal_alignment = 1
+
 [node name="Log" type="Label" parent="."]
 layout_mode = 0
 offset_left = 60.0
@@ -86,7 +91,7 @@ text = "A thug and a drone block your path!"
 [node name="Menu" type="VBoxContainer" parent="."]
 layout_mode = 0
 offset_left = 880.0
-offset_top = 420.0
+offset_top = 280.0
 offset_right = 1060.0
 offset_bottom = 590.0
 theme_override_constants/separation = 8
@@ -94,6 +99,18 @@ theme_override_constants/separation = 8
 [node name="Attack" type="Button" parent="Menu"]
 layout_mode = 2
 text = "Attack"
+
+[node name="PowerStrike" type="Button" parent="Menu"]
+layout_mode = 2
+text = "Power Strike (3E)"
+
+[node name="Heal" type="Button" parent="Menu"]
+layout_mode = 2
+text = "Heal (5E)"
+
+[node name="GuardUp" type="Button" parent="Menu"]
+layout_mode = 2
+text = "Guard Up (0E)"
 
 [node name="Defend" type="Button" parent="Menu"]
 layout_mode = 2
