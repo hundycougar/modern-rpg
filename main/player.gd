@@ -23,6 +23,13 @@ func _process(_delta: float) -> void:
 		try_move(Vector2i.RIGHT)
 
 
+# Drops the player straight onto `cell`, ignoring walls (used to restore the
+# position we left the overworld from).
+func set_grid_pos(cell: Vector2i) -> void:
+	grid_pos = cell
+	_sync_position()
+
+
 # Moves one tile in `dir` if the target tile is walkable. Returns whether it moved.
 func try_move(dir: Vector2i) -> bool:
 	var target := grid_pos + dir

@@ -10,6 +10,10 @@ config/name="myMultiFactory"
 run/main_scene="res://main/world.tscn"
 config/features=PackedStringArray("4.3")
 
+[autoload]
+
+Game="*res://game/game_manager.gd"
+
 [display]
 
 window/size/viewport_width=1152
