@@ -4,6 +4,7 @@ extends Node
 
 var overworld_return_pos: Vector2i = Vector2i.ZERO
 var pending_enemy_id: int = -1
+var pending_enemy_type: String = ""
 var last_result: String = ""
 var respawn_delay: float = 8.0
 
@@ -12,8 +13,9 @@ var _defeated: Dictionary = {}
 
 
 # Records the enemy that triggered the fight and where to put the player back.
-func begin_battle(enemy_id: int, return_pos: Vector2i) -> void:
+func begin_battle(enemy_id: int, return_pos: Vector2i, enemy_type: String = "") -> void:
 	pending_enemy_id = enemy_id
+	pending_enemy_type = enemy_type
 	overworld_return_pos = return_pos
 	last_result = ""
 

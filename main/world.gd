@@ -44,25 +44,31 @@ func _process(delta: float) -> void:
 	Game.tick_respawns(delta)
 	_refresh_enemies()
 
-	var id := check_encounter()
-	if id == -1:
+	var enemy = touched_enemy()
+	if enemy == null:
 		_armed = true
 	elif _armed:
 		_armed = false
-		Game.begin_battle(id, _player.grid_pos)
+		Game.begin_battle(enemy.enemy_id, _player.grid_pos, enemy.enemy_type)
 		get_tree().change_scene_to_file(BATTLE_SCENE)
 
 
 # The id of a live overworld enemy sharing the player's tile or an orthogonally
 # adjacent one, else -1.
 func check_encounter() -> int:
+	var enemy = touched_enemy()
+	return enemy.enemy_id if enemy != null else -1
+
+
+# The live overworld enemy the player is touching, else null.
+func touched_enemy():
 	for e in get_tree().get_nodes_in_group("overworld_enemy"):
 		if not e.visible:
 			continue
 		var offset: Vector2i = e.grid_pos - _player.grid_pos
 		if absi(offset.x) + absi(offset.y) <= 1:
-			return e.enemy_id
-	return -1
+			return e
+	return null
 
 
 # Defeated enemies stay hidden until their respawn timer runs out.

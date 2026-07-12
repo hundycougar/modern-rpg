@@ -3,6 +3,7 @@ extends Node2D
 const CELL_SIZE := 32
 
 @export var enemy_id: int = 0
+@export var enemy_type: String = "thug"
 @export var start_cell: Vector2i = Vector2i.ZERO
 
 var grid_pos: Vector2i = Vector2i.ZERO

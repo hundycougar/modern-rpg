@@ -6,6 +6,18 @@ const VARIANCE := 0.15
 
 const OVERWORLD_SCENE := "res://main/world.tscn"
 
+# Base stats + sprite per overworld enemy type. Unknown types fall back to thug.
+const BASE_STATS := {
+	"thug": {
+		"cname": "Thug", "max_hp": 12, "attack": 6, "defense": 1, "agility": 5,
+		"texture": preload("res://assets/enemy_thug.png"),
+	},
+	"drone": {
+		"cname": "Drone", "max_hp": 10, "attack": 5, "defense": 3, "agility": 7,
+		"texture": preload("res://assets/enemy_drone.png"),
+	},
+}
+
 # How long the result line stays up before we drop back to the map.
 const EXIT_DELAY := 1.2
 
@@ -29,7 +41,7 @@ var _fled := false
 
 
 func _ready() -> void:
-	player = Combatant.new("You", 30, 10, 2, 8)
+	player = _new_player()
 	enemies = [
 		Combatant.new("Thug", 12, 6, 1, 5),
 		Combatant.new("Drone", 10, 5, 3, 7),
@@ -40,8 +52,42 @@ func _ready() -> void:
 	$Menu/Flee.pressed.connect(_on_flee_pressed)
 	_enemy_timer.timeout.connect(_on_enemy_timer_timeout)
 
+	# Fought from the overworld: the mob you touched is the mob you fight. Run
+	# standalone (no autoload, no pending encounter) and you get the default pair.
+	var gm = get_node_or_null("/root/Game")
+	if gm != null and gm.pending_enemy_type != "":
+		setup_from_type(gm.pending_enemy_type)
+
 	_refresh()
 	_start_round()
+
+
+# Rebuilds the roster as the player plus exactly one enemy of `enemy_type`.
+func setup_from_type(enemy_type: String) -> void:
+	var base: Dictionary = BASE_STATS.get(enemy_type, BASE_STATS["thug"])
+	player = _new_player()
+	enemies = [Combatant.new(
+		base["cname"],
+		_roll(base["max_hp"]),
+		_roll(base["attack"]),
+		_roll(base["defense"]),
+		_roll(base["agility"]),
+	)]
+
+	_enemy_boxes[0].get_node("Sprite").texture = base["texture"]
+	_say("A %s blocks your path!" % base["cname"].to_lower())
+	_refresh()
+
+
+func _new_player():
+	return Combatant.new("You", 30, 10, 2, 8)
+
+
+# A stat rolled ±VARIANCE off its base, or the base itself when deterministic.
+func _roll(base: int) -> int:
+	if deterministic:
+		return base
+	return max(1, roundi(base * randf_range(1.0 - VARIANCE, 1.0 + VARIANCE)))
 
 
 # --- battle logic (the acceptance test's contract) ---
@@ -203,8 +249,11 @@ func _say(text: String) -> void:
 
 func _refresh() -> void:
 	_player_hp.text = "You  %d/%d" % [player.hp, player.max_hp]
-	for i in enemies.size():
-		var e = enemies[i]
+	for i in _enemy_boxes.size():
 		var box: Control = _enemy_boxes[i]
+		box.visible = i < enemies.size()
+		if not box.visible:
+			continue
+		var e = enemies[i]
 		box.get_node("HP").text = "%s  %d/%d" % [e.cname, e.hp, e.max_hp]
 		box.modulate.a = 1.0 if e.is_alive() else 0.3

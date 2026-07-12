@@ -20,6 +20,7 @@ tile_set = ExtResource("2_tileset")
 [node name="Enemy0" type="Node2D" parent="." groups=["overworld_enemy"]]
 script = ExtResource("5_enemy")
 enemy_id = 0
+enemy_type = "thug"
 start_cell = Vector2i(14, 12)
 
 [node name="Sprite2D" type="Sprite2D" parent="Enemy0"]
@@ -32,6 +33,7 @@ autostart = true
 [node name="Enemy1" type="Node2D" parent="." groups=["overworld_enemy"]]
 script = ExtResource("5_enemy")
 enemy_id = 1
+enemy_type = "drone"
 start_cell = Vector2i(7, 15)
 
 [node name="Sprite2D" type="Sprite2D" parent="Enemy1"]
@@ -44,6 +46,7 @@ autostart = true
 [node name="Enemy2" type="Node2D" parent="." groups=["overworld_enemy"]]
 script = ExtResource("5_enemy")
 enemy_id = 2
+enemy_type = "thug"
 start_cell = Vector2i(16, 17)
 
 [node name="Sprite2D" type="Sprite2D" parent="Enemy2"]
