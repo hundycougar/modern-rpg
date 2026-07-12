@@ -15,6 +15,9 @@ var player_attack: int = 10
 var player_defense: int = 2
 var player_agility: int = 8
 
+var player_level: int = 1
+var player_xp: int = 0
+
 # enemy_id -> seconds left until it respawns.
 var _defeated: Dictionary = {}
 
@@ -33,6 +36,43 @@ func reset_player() -> void:
 	player_attack = 10
 	player_defense = 2
 	player_agility = 8
+	player_level = 1
+	player_xp = 0
+
+
+# XP needed to go from `level` to `level + 1`.
+func xp_for_level(level: int) -> int:
+	return int(round(50.0 * pow(level, 1.5) + 25.0 * level))
+
+
+func xp_reward(enemy_type: String) -> int:
+	match enemy_type:
+		"thug":
+			return 30
+		"drone":
+			return 40
+		_:
+			return 0
+
+
+# Banks XP, spending it on as many levels as it covers. Returns levels gained.
+func gain_xp(amount: int) -> int:
+	player_xp += amount
+	var gained := 0
+	while player_xp >= xp_for_level(player_level):
+		player_xp -= xp_for_level(player_level)
+		_level_up()
+		gained += 1
+	return gained
+
+
+func _level_up() -> void:
+	player_level += 1
+	player_max_hp += 5
+	player_attack += 2
+	player_defense += 1
+	player_agility += 1
+	player_hp = player_max_hp
 
 
 # Records the enemy that triggered the fight and where to put the player back.
@@ -48,6 +88,7 @@ func end_battle(result: String) -> void:
 	last_result = result
 	if result == "player" and pending_enemy_id != -1:
 		_defeated[pending_enemy_id] = respawn_delay
+		gain_xp(xp_reward(pending_enemy_type))
 
 
 func is_defeated(enemy_id: int) -> bool:
