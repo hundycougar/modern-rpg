@@ -38,6 +38,8 @@ var _fled := false
 @onready var _menu: VBoxContainer = $Menu
 @onready var _target_menu: VBoxContainer = $TargetMenu
 @onready var _enemy_timer: Timer = $EnemyTimer
+@onready var _banner: Label = $Banner
+@onready var _game_over: Control = $GameOver
 
 
 func _ready() -> void:
@@ -50,13 +52,20 @@ func _ready() -> void:
 	$Menu/Attack.pressed.connect(_on_attack_pressed)
 	$Menu/Defend.pressed.connect(_on_defend_pressed)
 	$Menu/Flee.pressed.connect(_on_flee_pressed)
+	$GameOver/Restart.pressed.connect(_on_restart_pressed)
 	_enemy_timer.timeout.connect(_on_enemy_timer_timeout)
 
 	# Fought from the overworld: the mob you touched is the mob you fight. Run
 	# standalone (no autoload, no pending encounter) and you get the default pair.
 	var gm = get_node_or_null("/root/Game")
-	if gm != null and gm.pending_enemy_type != "":
-		setup_from_type(gm.pending_enemy_type)
+	if gm != null:
+		if gm.pending_enemy_type != "":
+			setup_from_type(gm.pending_enemy_type)
+		# You walk in as hurt as you walked out of the last fight.
+		apply_player_stats(
+			gm.player_hp, gm.player_max_hp,
+			gm.player_attack, gm.player_defense, gm.player_agility,
+		)
 
 	_refresh()
 	_start_round()
@@ -81,6 +90,17 @@ func setup_from_type(enemy_type: String) -> void:
 
 func _new_player():
 	return Combatant.new("You", 30, 10, 2, 8)
+
+
+# Seeds the player combatant from carried-over state instead of a fresh 30/30.
+func apply_player_stats(hp: int, max_hp: int, atk: int, dfn: int, agi: int) -> void:
+	player = Combatant.new("You", max_hp, atk, dfn, agi)
+	player.hp = clampi(hp, 0, max_hp)
+	_refresh()
+
+
+func player_current_hp() -> int:
+	return player.hp
 
 
 # A stat rolled ±VARIANCE off its base, or the base itself when deterministic.
@@ -179,13 +199,29 @@ func _on_enemy_timer_timeout() -> void:
 func _end_battle() -> void:
 	_hide_menus()
 	_refresh()
+
+	# The HP you walk away with is the HP you bring to the next fight.
+	var gm = get_node_or_null("/root/Game")
+	if gm != null:
+		gm.set_player_hp(player_current_hp())
+		if gm.is_game_over():
+			_say("You are down. Defeat...")
+			_game_over.show()
+			return
+
 	if _fled:
 		_say("You fled the fight.")
 	elif winner() == "player":
 		_say("Victory! All enemies are down.")
+		_banner.show()
 	else:
 		_say("You are down. Defeat...")
 	_return_to_overworld()
+
+
+func _on_restart_pressed() -> void:
+	Game.reset_player()
+	get_tree().change_scene_to_file(OVERWORLD_SCENE)
 
 
 func _return_to_overworld() -> void:
