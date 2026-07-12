@@ -4,6 +4,11 @@ const Combatant = preload("res://battle/combatant.gd")
 
 const VARIANCE := 0.15
 
+const OVERWORLD_SCENE := "res://main/world.tscn"
+
+# How long the result line stays up before we drop back to the map.
+const EXIT_DELAY := 1.2
+
 # When true, damage has no random variance — repeatable math for the tests.
 var deterministic: bool = false
 
@@ -134,6 +139,14 @@ func _end_battle() -> void:
 		_say("Victory! All enemies are down.")
 	else:
 		_say("You are down. Defeat...")
+	_return_to_overworld()
+
+
+func _return_to_overworld() -> void:
+	# Fleeing is its own result: you didn't win, so the enemy is still out there.
+	Game.end_battle("fled" if _fled else winner())
+	await get_tree().create_timer(EXIT_DELAY).timeout
+	get_tree().change_scene_to_file(OVERWORLD_SCENE)
 
 
 # --- player actions ---
