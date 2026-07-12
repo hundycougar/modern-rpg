@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://main/world.gd" id="1_world"]
 [ext_resource type="TileSet" path="res://main/tileset.tres" id="2_tileset"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://main/overworld_enemy.gd" id="5_enemy"]
 [ext_resource type="Texture2D" path="res://assets/enemy_thug.png" id="6_thug_tex"]
 [ext_resource type="Texture2D" path="res://assets/enemy_drone.png" id="7_drone_tex"]
+[ext_resource type="PackedScene" path="res://ui/hud.tscn" id="8_hud"]
 
 [node name="World" type="Node2D"]
 script = ExtResource("1_world")
@@ -68,3 +69,5 @@ limit_left = 0
 limit_top = 0
 limit_right = 3200
 limit_bottom = 3200
+
+[node name="HUD" parent="." instance=ExtResource("8_hud")]
