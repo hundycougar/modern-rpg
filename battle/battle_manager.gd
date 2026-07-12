@@ -21,18 +21,40 @@ const BASE_STATS := {
 # How long the result line stays up before we drop back to the map.
 const EXIT_DELAY := 1.2
 
+# The player's three battle skills. Each is limited a different way: energy,
+# cooldown, or both.
+const SKILL_DEFS := [
+	{"id": "power_strike", "sname": "Power Strike", "kind": "damage", "cost": 3, "cooldown": 0, "power": 8},
+	{"id": "heal", "sname": "Heal", "kind": "heal", "cost": 5, "cooldown": 2, "power": 12},
+	{"id": "guard_up", "sname": "Guard Up", "kind": "buff", "cost": 0, "cooldown": 3, "power": 4},
+]
+
+const _SKILL_BUTTONS := {
+	"power_strike": "PowerStrike",
+	"heal": "Heal",
+	"guard_up": "GuardUp",
+}
+
 # When true, damage has no random variance — repeatable math for the tests.
 var deterministic: bool = false
 
 var player
 var enemies: Array = []
 
+var player_max_energy: int = 10
+var player_energy: int = 10
+
 var _order: Array = []
 var _turn_index := 0
 var _acting_enemy = null
 var _fled := false
+# skill id -> turns left before it can be used again.
+var _skill_cooldowns: Dictionary = {}
+# Which skill the open target menu is picking a target for ("" = plain Attack).
+var _pending_skill := ""
 
 @onready var _player_hp: Label = $PlayerBox/HP
+@onready var _player_energy_label: Label = $PlayerBox/Energy
 @onready var _enemy_boxes: Array = [$EnemyRow/Enemy0, $EnemyRow/Enemy1]
 @onready var _log: Label = $Log
 @onready var _menu: VBoxContainer = $Menu
@@ -48,8 +70,12 @@ func _ready() -> void:
 		Combatant.new("Thug", 12, 6, 1, 5),
 		Combatant.new("Drone", 10, 5, 3, 7),
 	]
+	_reset_skills()
 
 	$Menu/Attack.pressed.connect(_on_attack_pressed)
+	$Menu/PowerStrike.pressed.connect(_on_skill_pressed.bind("power_strike"))
+	$Menu/Heal.pressed.connect(_on_skill_pressed.bind("heal"))
+	$Menu/GuardUp.pressed.connect(_on_skill_pressed.bind("guard_up"))
 	$Menu/Defend.pressed.connect(_on_defend_pressed)
 	$Menu/Flee.pressed.connect(_on_flee_pressed)
 	$GameOver/Restart.pressed.connect(_on_restart_pressed)
@@ -75,6 +101,7 @@ func _ready() -> void:
 func setup_from_type(enemy_type: String) -> void:
 	var base: Dictionary = BASE_STATS.get(enemy_type, BASE_STATS["thug"])
 	player = _new_player()
+	_reset_skills()
 	enemies = [Combatant.new(
 		base["cname"],
 		_roll(base["max_hp"]),
@@ -136,6 +163,78 @@ func do_attack(attacker, target) -> int:
 	return dmg
 
 
+# --- skills (the acceptance test's contract) ---
+
+# Full energy, every skill off cooldown.
+func _reset_skills() -> void:
+	player_energy = player_max_energy
+	_skill_cooldowns.clear()
+	for s in SKILL_DEFS:
+		_skill_cooldowns[s["id"]] = 0
+
+
+func available_skills() -> Array:
+	var out := []
+	for s in SKILL_DEFS:
+		out.append({
+			"id": s["id"],
+			"sname": s["sname"],
+			"cost": s["cost"],
+			"cooldown": s["cooldown"],
+			"current_cooldown": _skill_cooldowns.get(s["id"], 0),
+		})
+	return out
+
+
+func can_use_skill(skill_id: String) -> bool:
+	var s := _skill_def(skill_id)
+	if s.is_empty():
+		return false
+	return player_energy >= int(s["cost"]) and int(_skill_cooldowns.get(skill_id, 0)) == 0
+
+
+# Spends the skill and applies its effect. A no-op returning {"ok": false} if the
+# skill is out of energy or still cooling down.
+func use_skill(skill_id: String, target) -> Dictionary:
+	if not can_use_skill(skill_id):
+		return {"ok": false}
+	var s := _skill_def(skill_id)
+	player_energy -= int(s["cost"])
+	_skill_cooldowns[skill_id] = int(s["cooldown"])
+
+	var result := {"ok": true}
+	match s["kind"]:
+		"damage":
+			var dmg: int = max(1, (player.attack + int(s["power"])) - target.defense)
+			if not deterministic:
+				var spread: float = dmg * VARIANCE
+				dmg = max(1, roundi(dmg + randf_range(-spread, spread)))
+			target.hp = max(0, target.hp - dmg)
+			result["damage"] = dmg
+		"heal":
+			var before: int = target.hp
+			target.hp = min(target.max_hp, target.hp + int(s["power"]))
+			result["heal"] = target.hp - before
+		"buff":
+			target.defense += int(s["power"])
+			result["buff"] = int(s["power"])
+	_refresh()
+	return result
+
+
+# Every skill cools down by one turn. Called at the top of each player turn.
+func tick_skill_cooldowns() -> void:
+	for id in _skill_cooldowns:
+		_skill_cooldowns[id] = max(0, int(_skill_cooldowns[id]) - 1)
+
+
+func _skill_def(skill_id: String) -> Dictionary:
+	for s in SKILL_DEFS:
+		if s["id"] == skill_id:
+			return s
+	return {}
+
+
 func is_over() -> bool:
 	if not player.is_alive():
 		return true
@@ -176,6 +275,7 @@ func _next_turn() -> void:
 	# A Defend lasts until the defender's next turn comes round.
 	actor.defending = false
 	if actor == player:
+		tick_skill_cooldowns()
 		_show_menu()
 	else:
 		_hide_menus()
@@ -234,6 +334,29 @@ func _return_to_overworld() -> void:
 # --- player actions ---
 
 func _on_attack_pressed() -> void:
+	_pending_skill = ""
+	_show_targets()
+
+
+# Self-targeted skills fire straight away; a damage skill picks its target first.
+func _on_skill_pressed(skill_id: String) -> void:
+	if not can_use_skill(skill_id):
+		return
+	var s := _skill_def(skill_id)
+	if s["kind"] == "damage":
+		_pending_skill = skill_id
+		_show_targets()
+		return
+	_hide_menus()
+	var r := use_skill(skill_id, player)
+	if r.has("heal"):
+		_say("You patch yourself up for %d." % r["heal"])
+	else:
+		_say("Your guard tightens. +%d defense." % r["buff"])
+	_advance()
+
+
+func _show_targets() -> void:
 	_menu.hide()
 	for child in _target_menu.get_children():
 		child.queue_free()
@@ -249,7 +372,12 @@ func _on_attack_pressed() -> void:
 
 func _on_target_pressed(target) -> void:
 	_hide_menus()
-	var dmg := do_attack(player, target)
+	var dmg := 0
+	if _pending_skill == "":
+		dmg = do_attack(player, target)
+	else:
+		dmg = int(use_skill(_pending_skill, target).get("damage", 0))
+		_pending_skill = ""
 	var suffix := " It goes down!" if not target.is_alive() else ""
 	_say("You hit %s for %d.%s" % [target.cname, dmg, suffix])
 	_advance()
@@ -283,8 +411,21 @@ func _say(text: String) -> void:
 	_log.text = text
 
 
+# Each skill button reads out its cost, and its remaining cooldown when it has one.
+func _refresh_skill_buttons() -> void:
+	for s in available_skills():
+		var button: Button = _menu.get_node(_SKILL_BUTTONS[s["id"]])
+		var label: String = "%s (%dE)" % [s["sname"], s["cost"]]
+		if s["current_cooldown"] > 0:
+			label += " CD %d" % s["current_cooldown"]
+		button.text = label
+		button.disabled = not can_use_skill(s["id"])
+
+
 func _refresh() -> void:
 	_player_hp.text = "You  %d/%d" % [player.hp, player.max_hp]
+	_player_energy_label.text = "Energy  %d/%d" % [player_energy, player_max_energy]
+	_refresh_skill_buttons()
 	for i in _enemy_boxes.size():
 		var box: Control = _enemy_boxes[i]
 		box.visible = i < enemies.size()
