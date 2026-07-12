@@ -82,7 +82,32 @@ func _initialize() -> void:
 	else:
 		_fail("expected LEFT past edge to be blocked (at=%s moved=%s)" % [at_edge, left_off])
 
+	# 6) input: move_* actions must map BOTH the WASD key and the arrow key
+	var expected := {
+		"move_up": [KEY_W, KEY_UP],
+		"move_down": [KEY_S, KEY_DOWN],
+		"move_left": [KEY_A, KEY_LEFT],
+		"move_right": [KEY_D, KEY_RIGHT],
+	}
+	for action in expected:
+		var keys := _action_keys(action)
+		var need: Array = expected[action]
+		if keys.has(need[0]) and keys.has(need[1]):
+			_pass("input '%s' maps both keys" % action)
+		else:
+			_fail("input '%s' must map keys %s (found %s)" % [action, need, keys])
+
 	_finish()
+
+func _action_keys(action: String) -> Array:
+	var out := []
+	if not InputMap.has_action(action):
+		return out
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			out.append(ev.keycode)
+			out.append(ev.physical_keycode)
+	return out
 
 func _finish() -> void:
 	if _failed:
