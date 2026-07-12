@@ -18,6 +18,26 @@ var player_agility: int = 8
 var player_level: int = 1
 var player_xp: int = 0
 
+var scrap: int = 0
+# item_id -> quantity.
+var inventory: Dictionary = {}
+# What the last won fight dropped, for the battle screen's loot summary.
+var last_loot: Dictionary = {}
+
+# What each enemy type drops. Rolls below `chance` land the item.
+const LOOT_TABLES := {
+	"thug": {
+		"scrap_min": 5, "scrap_max": 15,
+		"common": {"id": "bandage", "chance": 0.40},
+		"rare": {"id": "stimpack", "chance": 0.05},
+	},
+	"drone": {
+		"scrap_min": 8, "scrap_max": 20,
+		"common": {"id": "scrap_metal", "chance": 0.40},
+		"rare": {"id": "power_cell", "chance": 0.08},
+	},
+}
+
 # enemy_id -> seconds left until it respawns.
 var _defeated: Dictionary = {}
 
@@ -38,6 +58,9 @@ func reset_player() -> void:
 	player_agility = 8
 	player_level = 1
 	player_xp = 0
+	scrap = 0
+	inventory = {}
+	last_loot = {}
 
 
 # XP needed to go from `level` to `level + 1`.
@@ -75,6 +98,58 @@ func _level_up() -> void:
 	player_hp = player_max_hp
 
 
+# --- loot ---
+
+func add_scrap(n: int) -> void:
+	scrap += n
+
+
+func add_item(item_id: String, qty: int = 1) -> void:
+	inventory[item_id] = item_count(item_id) + qty
+
+
+func item_count(item_id: String) -> int:
+	return inventory.get(item_id, 0)
+
+
+# An unknown enemy type drops nothing.
+func loot_table(enemy_type: String) -> Dictionary:
+	return LOOT_TABLES.get(enemy_type, {})
+
+
+# Pure: the same two rolls always give the same drop. `roll_loot` supplies the RNG.
+func resolve_loot(enemy_type: String, scrap_roll: float, item_roll: float) -> Dictionary:
+	var table := loot_table(enemy_type)
+	if table.is_empty():
+		return {"scrap": 0, "item": ""}
+
+	var scrap_min: int = table["scrap_min"]
+	var scrap_max: int = table["scrap_max"]
+	var dropped: int = scrap_min + int(round((scrap_max - scrap_min) * scrap_roll))
+
+	var rare: Dictionary = table["rare"]
+	var common: Dictionary = table["common"]
+	var item := ""
+	if item_roll < float(rare["chance"]):
+		item = rare["id"]
+	elif item_roll < float(rare["chance"]) + float(common["chance"]):
+		item = common["id"]
+
+	return {"scrap": dropped, "item": item}
+
+
+func roll_loot(enemy_type: String) -> Dictionary:
+	return resolve_loot(enemy_type, randf(), randf())
+
+
+func award_loot(enemy_type: String) -> Dictionary:
+	var loot := roll_loot(enemy_type)
+	add_scrap(loot["scrap"])
+	if loot["item"] != "":
+		add_item(loot["item"])
+	return loot
+
+
 # Records the enemy that triggered the fight and where to put the player back.
 func begin_battle(enemy_id: int, return_pos: Vector2i, enemy_type: String = "") -> void:
 	pending_enemy_id = enemy_id
@@ -89,6 +164,7 @@ func end_battle(result: String) -> void:
 	if result == "player" and pending_enemy_id != -1:
 		_defeated[pending_enemy_id] = respawn_delay
 		gain_xp(xp_reward(pending_enemy_type))
+		last_loot = award_loot(pending_enemy_type)
 
 
 func is_defeated(enemy_id: int) -> bool:

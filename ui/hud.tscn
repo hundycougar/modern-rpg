@@ -15,4 +15,17 @@ offset_bottom = 78.0
 layout_mode = 2
 text = "HP  30/30
 LV  1
-XP  0/75"
+XP  0/75
+SCRAP  0"
+
+[node name="Inventory" type="PanelContainer" parent="."]
+visible = false
+offset_left = 8.0
+offset_top = 108.0
+offset_right = 188.0
+offset_bottom = 208.0
+
+[node name="Label" type="Label" parent="Inventory"]
+layout_mode = 2
+text = "INVENTORY (I)
+(empty)"
